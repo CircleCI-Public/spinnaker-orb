@@ -26,7 +26,7 @@ parameters:
       This parameter is ineffective when "spin-config-path" is set to a non-default
       value.
     type: boolean
-    default: false 
+    default: false
 steps:
   - run:
       name: Install spin
