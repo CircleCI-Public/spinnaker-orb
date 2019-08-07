@@ -27,12 +27,12 @@ jobs:
       - run:
           name: Trigger integration workflow
           command: |
-            curl -u ${CIRCLE_TOKEN}: -X POST --header "Content-Type: application/json" -d "{\
-              \"branch\": \"${CIRCLE_BRANCH}\"
-              \"parameters\": {\
-                \"cluster-name\": \"<< parameters.cluster-name >>\",\
-                \"run-integration-tests\": true\
-              }\
+            curl -u ${CIRCLE_TOKEN}: -X POST --header "Content-Type: application/json" -d "{
+              \"branch\": \"${CIRCLE_BRANCH}\",
+              \"parameters\": {
+                \"cluster-name\": \"<< parameters.cluster-name >>\",
+                \"run-integration-tests\": true
+              }
             }" "https://circleci.com/api/v2/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pipeline"
   test-spinnaker:
     executor: spinnaker/default
@@ -42,7 +42,6 @@ jobs:
           Name of the EKS cluster
         type: string
     steps:
-      - checkout
       - aws-eks/update-kubeconfig-with-authenticator:
           cluster-name: << parameters.cluster-name >>
           install-kubectl: true
@@ -67,6 +66,7 @@ jobs:
 
 workflows:
   lint-pack_validate_publish-dev:
+    unless: << pipeline.parameters.run-integration-tests >>
     jobs:
       - orb-tools/lint
       - orb-tools/pack:
