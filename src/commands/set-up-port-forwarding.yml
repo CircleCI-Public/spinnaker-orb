@@ -1,0 +1,73 @@
+description: |
+  Set up port forwarding for a Spinnaker microservice in a Kubernetes-based
+  Spinnaker installation. This will be run as a background step, which means that the
+  it will run concurrently with the next step(s) in the configuration.
+  Note: requires kubectl to be configured to connect to the kubernetes cluster.
+parameters:
+  pod:
+    description: |
+      The Spinnaker pod to set up port forwarding for.
+      Deck (Spinnaker UI) and Gate (Spinnaker API Gateway) are supported.
+    type: enum
+    enum: ["deck", "gate"]
+  source-port:
+    description: |
+      Specify the local port number in the Spinnaker pod that port forwarding will be
+      set up for.
+      The default value of -1 will cause the default local port number for the specified
+      Spinnaker pod in a Spinnaker installation to be used.
+    type: integer
+    default: -1
+  target-port:
+    description: |
+      Specify the target port number for port forwarding to.
+      The default value of -1 will cause the same port number to be used as the
+      default local port number for the specified Spinnaker pod in a Spinnaker installation.
+    type: integer
+    default: -1
+  namespace:
+    description: |
+      The kubernetes namespace in which Spinnaker was installed.
+    type: string
+steps:
+  - run:
+      name: Set up port forwarding for Spinnaker pod (<< parameters.pod >>)
+      command: |
+        POD="<< parameters.pod >>"
+        SOURCE_PORT="<< parameters.source-port >>"
+        TARGET_PORT="<< parameters.target-port >>"
+        NAMESPACE="<< parameters.namespace >>"
+
+        POD_NAME=$(kubectl get pods \
+          --selector=app.kubernetes.io/name=${POD},app.kubernetes.io/part-of=spinnaker \
+          --namespace ${NAMESPACE} \
+          --output=jsonpath={.items[0].metadata.name})
+        GET_PODS_EXIT_CODE=$?
+        if [ -n "${POD_NAME}" ] && [ "${GET_PODS_EXIT_CODE}" == "0" ]; then
+          echo "Pod name found: ${POD_NAME}"
+        else
+          echo "Result: ${POD_NAME}"
+          echo "Exit code of kubectl get pods command: ${GET_PODS_EXIT_CODE}."
+          echo "Could not look up name of pod corresponding to ${POD}. Please check if "\
+            "kubectl is installed and able to connect to the cluster in which Spinnaker is installed."
+          exit 1
+        fi
+
+        if [ "${POD}" == "deck" ]; then
+          if [ "${SOURCE_PORT}" == "-1" ]; then
+            SOURCE_PORT=9000
+          fi
+          if [ "${TARGET_PORT}" == "-1" ]; then
+            TARGET_PORT=9000
+          fi
+        elif [ "${POD}" == "gate" ]; then
+          if [ "${SOURCE_PORT}" == "-1" ]; then
+            SOURCE_PORT=8084
+          fi
+          if [ "${TARGET_PORT}" == "-1" ]; then
+            TARGET_PORT=8084
+          fi
+        fi
+
+        kubectl --namespace ${NAMESPACE} port-forward ${POD_NAME} ${SOURCE_PORT}:${TARGET_PORT}
+      background: true
