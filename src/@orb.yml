@@ -1,7 +1,4 @@
 version: 2.1
 
-description: >
+description: |
   An orb to simplify deployments with Spinnaker.
-
-orbs:
-  kubernetes: circleci/kubernetes@0.3.0

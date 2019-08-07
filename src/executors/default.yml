@@ -1,14 +1,12 @@
-# How to author Executors: https://circleci.com/docs/2.0/reusing-config/#authoring-reusable-executors
-description: >
-  This is a sample executor using Docker and Node.
-  # What is this executor?
-  # Descriptions should be short, simple, and clear.
+description: |
+  This is a default executor that is based on Debian Stretch and has
+  Python 3 installed.
 docker:
-  - image: 'circleci/node:<<parameters.tag>>'
+  - image: 'circleci/python:<<parameters.tag>>'
 parameters:
   tag:
-    default: latest
-    description: >
-      Pick a specific circleci/node image variant:
-      https://hub.docker.com/r/circleci/node/tags
+    default: 3-stretch
+    description: |
+      Pick a specific circleci/python image variant:
+      https://hub.docker.com/r/circleci/python/tags
     type: string

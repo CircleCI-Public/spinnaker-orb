@@ -1,0 +1,22 @@
+description: |
+  Triggers an application's pipeline in Spinnaker
+  by invoking a webhook which must be pre-configured in Spinnaker.
+parameters:
+  webhook-endpoint:
+    description: |
+      Webhook endpoint
+    type: string
+  payload:
+    description: |
+      JSON payload e.g. '{"status": "success"}'
+      If the payload parameter value contains a single quote, the single quote needs to be escaped and
+      the payload parameter should be surrounded with single quotes in the YAML configuration.
+      e.g. payload: '{"status": "success", "message": "I\u0027ve got this" }'
+    type: string
+    default: '{}'
+steps:
+  - run:
+      name: Trigger Spinnaker pipeline with webhook
+      command: |
+        WEBHOOK_ENDPOINT="<< parameters.webhook-endpoint >>"
+        curl -X POST -H "content-type: application/json" -d '<< parameters.payload >>' $WEBHOOK_ENDPOINT
