@@ -4,6 +4,32 @@ orbs:
   aws-eks: circleci/aws-eks@0.2.0
   spinnaker: sandbox/spinnaker@dev:alpha
   orb-tools: circleci/orb-tools@8.27.3
+  spinnaker-test:
+    commands:
+      install-halyard:
+        steps:
+          - run:
+              name: Install hal (debian < 10)
+              command: |
+                echo "deb http://deb.debian.org/debian stretch-backports main" | sudo tee -a /etc/apt/sources.list.d/stretch-backports.list
+                sudo apt-get update
+                curl -O https://raw.githubusercontent.com/spinnaker/halyard/master/install/debian/InstallHalyard.sh
+                sudo bash InstallHalyard.sh --user $(whoami) -y
+      verify-pipeline-execution:
+        parameters:
+          search-term:
+            description: |
+              Search term used to check for pipeline execution.
+              Specify a value that can uniquely identify the execution.
+            type: string
+        steps:
+          - run:
+              name: Search for pipeline executions
+              command: |
+                APP_NAME="myapp" # This will narrow down results to only contain pipeline executions within a given application
+                TRIGGER_TYPE="webhook"
+                PIPELINE_SEARCH_URL="http://localhost:8084/applications/$APP_NAME/executions/search?triggerTypes=$TRIGGER_TYPE"
+                curl -s $PIPELINE_SEARCH_URL | grep << parameters.search-term >>
 
 parameters:
   run-integration-tests:
@@ -16,7 +42,7 @@ parameters:
 
 jobs:
   trigger-integration-tests:
-    executor: spinnaker/default
+    executor: spinnaker/default-stretch
     parameters:
       cluster-name:
         description: |
@@ -35,7 +61,7 @@ jobs:
               }
             }" "https://circleci.com/api/v2/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pipeline"
   test-spinnaker:
-    executor: spinnaker/default
+    executor: spinnaker/default-stretch
     parameters:
       cluster-name:
         description: |
@@ -63,6 +89,9 @@ jobs:
       - spinnaker/trigger-pipeline-with-webhook:
           webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
           payload: '{"status": "success", "message": "I\u0027ve got this" }'
+      - spinnaker-test/verify-pipeline-execution:
+          search-term: "$CIRCLE_BUILD_NUMBER"
+      
 
 workflows:
   lint-pack_validate_publish-dev:
