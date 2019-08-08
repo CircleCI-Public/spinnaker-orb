@@ -8,7 +8,7 @@ parameters:
     type: string
   payload:
     description: |
-      JSON payload. Escaping of double quotes in the payload is required; 
+      JSON payload. Escaping of double quotes in the payload is required;
       please check this parameter's description for instructions.
       If the parameter is surrounded with double quotes, the double quotes in the payload need to be escaped like in the
       following example.

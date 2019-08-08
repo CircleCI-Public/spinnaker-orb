@@ -91,7 +91,6 @@ jobs:
           payload: '{"status": "success", "message": "I\u0027ve got this" }'
       - spinnaker-test/verify-pipeline-execution:
           search-term: "$CIRCLE_BUILD_NUMBER"
-      
 
 workflows:
   lint-pack_validate_publish-dev:
