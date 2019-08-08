@@ -1,0 +1,79 @@
+description: |
+  Installs the spin CLI and optionally sets up the configuration directory.
+  Currently this command only supports installation on Linux.
+parameters:
+  configure-spin:
+    description: |
+      Create a configuration for spin in the user's home directory.
+      Either "spin-config-path" or "generate-config" should be enabled
+      if the configure-spin parameter is set to true.
+    type: boolean
+    default: false
+  spin-config-path:
+    description: |
+      Path to config file to be copied to spin's config directory.
+      Either "spin-config-path" or "generate-config" should be enabled
+      if the configure-spin parameter is set to true.
+      Takes precedence over "generate-config".
+    type: string
+    default: ""
+  generate-config:
+    description: |
+      Generates a spin config with authentication disabled and for
+      connection to a local Gate endpoint at the default port.
+      Either "spin-config-path" or "generate-config" should be enabled
+      if the configure-spin parameter is set to true.
+      This parameter is ineffective when "spin-config-path" is set to a non-default
+      value.
+    type: boolean
+    default: false
+steps:
+  - run:
+      name: Install spin
+      command: |
+        CONFIGURE_SPIN="<< parameters.configure-spin >>"
+        SPIN_CONFIG_PATH="<< parameters.spin-config-path >>"
+        GENERATE_CONFIG="<< parameters.generate-config >>"
+        if which spin > /dev/null; then
+          echo "spin is already installed"
+          exit 0
+        fi
+
+        curl --retry 5 -LO https://storage.googleapis.com/spinnaker-artifacts/spin/$(curl -s https://storage.googleapis.com/spinnaker-artifacts/spin/latest)/linux/amd64/spin
+        chmod +x spin
+        SUDO=""
+        if [ $(id -u) -ne 0 ] && which sudo > /dev/null ; then
+          SUDO="sudo"
+        fi
+        $SUDO mv spin /usr/local/bin/spin
+
+        echo "Checking version of spin installed.."
+        spin --version
+
+        # Only used if generate-config is effective
+        GENERATED_SPIN_CONFIG=$(mktemp generated_spin_config.XXXXXX)
+        cat \<<EOF > ${GENERATED_SPIN_CONFIG}
+          gate:
+            endpoint: http://localhost:8084
+          auth:
+            enabled: false
+        EOF
+
+        if [ "${CONFIGURE_SPIN}" == "true" ]; then
+          SPIN_CONFIG_DIR="~/.spin"
+          echo "Initializing spin configuration directory at ${SPIN_CONFIG_DIR}"
+          mkdir -p ${SPIN_CONFIG_DIR}
+          if [ -n "${SPIN_CONFIG_PATH}" ]; then
+            echo "Copying spin config from ${SPIN_CONFIG_PATH} to ${SPIN_CONFIG_DIR}"
+            cp ${SPIN_CONFIG_PATH} ${SPIN_CONFIG_DIR}/config
+          elif [ "${GENERATE_CONFIG}" == "true" ]; then
+            echo "Generating spin config with authentication disabled"
+            cp ${GENERATED_SPIN_CONFIG} ${SPIN_CONFIG_DIR}/config
+            echo "Generated config:"
+            cat ${SPIN_CONFIG_DIR}/config
+          else
+            echo "Unable to configure spin; neither the spin-config-path "\
+              "nor the generate-spin-config parameters were configured."
+            exit 1
+          fi
+        fi

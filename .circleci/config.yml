@@ -1,24 +1,356 @@
 version: 2.1
 
+orb_promotion_filters: &orb_promotion_filters
+  branches:
+    ignore: /.*/
+  tags:
+    only: /^(major|minor|patch)-release-v\d+\.\d+\.\d+$/
+
 orbs:
+  aws-eks: circleci/aws-eks@0.2.0
+  cli: circleci/circleci-cli@0.1.2
+  kubernetes: circleci/kubernetes@0.3.0
   orb-tools: circleci/orb-tools@8.27.3
-  shellcheck: circleci/shellcheck@1.3.14
+  queue: eddiewebb/queue@1.1.2
+  spinnaker: sandbox/spinnaker@dev:alpha
+  spinnaker-test:
+    commands:
+      install-halyard:
+        steps:
+          - run:
+              name: Install hal (debian < 10)
+              command: |
+                echo "deb http://deb.debian.org/debian stretch-backports main" \
+                  | sudo tee -a /etc/apt/sources.list.d/stretch-backports.list
+                sudo apt-get update
+                curl -O https://raw.githubusercontent.com/spinnaker/halyard/master/install/debian/InstallHalyard.sh
+                sudo bash InstallHalyard.sh --user $(whoami) -y
+      verify-pipeline-execution:
+        parameters:
+          app-name:
+            description: |
+              Spinnaker application name
+            type: string
+          search-term:
+            description: |
+              Search term used to check for pipeline execution.
+              Specify a value that can uniquely identify the execution.
+            type: string
+        steps:
+          - run:
+              name: Search for pipeline executions
+              command: |
+                # This will narrow down results to only contain pipeline executions within a given application
+                APP_NAME="<< parameters.app-name >>"
+                TRIGGER_TYPE="webhook"
+                PIPELINE_SEARCH_URL="http://localhost:8084/applications/$APP_NAME/executions/search?triggerTypes=$TRIGGER_TYPE"
+                curl -s $PIPELINE_SEARCH_URL | grep << parameters.search-term >>
+
+parameters:
+  run-integration-tests:
+    type: boolean
+    default: false
+  cluster-name:
+    type: string
+    default: "spinnaker-orb-tests"
 
 jobs:
-  getting-started:
-    docker:
-      - image: circleci/node
+  trigger-integration-tests:
+    executor: spinnaker/default-stretch
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
     steps:
+      - checkout
       - run:
-          name: Getting Started
+          name: Trigger integration workflow
           command: |
-            echo "Your orb is now building on CircleCI"
-            echo "This is a temporary configuration file. Continue with the orb-init.sh script and follow the README.md to publish your orb."
-workflows:
-  setup:
-    jobs:
-      - getting-started
-      - orb-tools/lint
-      - shellcheck/check:
-          ignore: 'SC1090,SC2034,SC2059,SC2001,SC2143,SC2046'
+            curl -u ${CIRCLE_TOKEN}: -X POST --header "Content-Type: application/json" -d "{
+              \"branch\": \"${CIRCLE_BRANCH}\",
+              \"parameters\": {
+                \"cluster-name\": \"<< parameters.cluster-name >>\",
+                \"run-integration-tests\": true
+              }
+            }" "https://circleci.com/api/v2/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pipeline"
+  # Integration test workflow jobs
+  install-spinnaker:
+    executor: spinnaker/default-stretch
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+      create-service-account:
+        description: |
+          Create a service account
+        type: boolean
+        default: true
+      spinnaker-account-name:
+        description: |
+          Account name
+        type: string
+      aws-region:
+        description: |
+          AWS region
+        type: string
+        default: $AWS_DEFAULT_REGION
+      spinnaker-version:
+        description: |
+          version of spinnaker to install
+        type: string
+    steps:
+      - checkout
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << parameters.cluster-name >>
+          install-kubectl: true
+      - run:
+          name: Test cluster connection
+          command: |
+            kubectl get services
+      - when:
+          condition: << parameters.create-service-account >>
+          steps:
+            - run:
+                name: Create service account
+                command: |
+                  # Ref: https://www.spinnaker.io/setup/install/providers/kubernetes-v2/#optional-create-a-kubernetes-service-account
+                  CONTEXT=$(kubectl config current-context)
 
+                  # This service account uses the ClusterAdmin role -- this is not necessary,
+                  # more restrictive roles can by applied.
+                  kubectl apply --context $CONTEXT \
+                      -f https://spinnaker.io/downloads/kubernetes/service-account.yml
+
+                  TOKEN=$(kubectl get secret --context $CONTEXT \
+                    $(kubectl get serviceaccount spinnaker-service-account \
+                        --context $CONTEXT \
+                        -n spinnaker \
+                        -o jsonpath='{.secrets[0].name}') \
+                    -n spinnaker \
+                    -o jsonpath='{.data.token}' | base64 --decode)
+
+                  kubectl config set-credentials ${CONTEXT}-token-user --token $TOKEN
+
+                  kubectl config set-context $CONTEXT --user ${CONTEXT}-token-user
+      - spinnaker-test/install-halyard
+      - run:
+          name: Enable Kubernetes Cloud provider using Halyard
+          command: |
+            # Ref: https://www.spinnaker.io/setup/install/providers/kubernetes-v2/aws-eks/
+            hal config provider kubernetes enable
+            hal config provider kubernetes account \
+              add << parameters.spinnaker-account-name >> \
+              --provider-version v2 \
+              --context $(kubectl config current-context)
+            hal config features edit --artifacts true
+      - run:
+          name: Choose distributed installation on K8s environment for installing Spinnaker
+          command: |
+            # Ref: https://www.spinnaker.io/setup/install/environment/
+            hal config deploy edit \
+              --type distributed \
+              --account-name << parameters.spinnaker-account-name >>
+            # Optional
+            LONGEST_SERVICE_STARTUP_TIME=300
+            hal config deploy edit \
+              --liveness-probe-enabled true \
+              --liveness-probe-initial-delay-seconds $LONGEST_SERVICE_STARTUP_TIME
+      - run:
+          name: Set up storage
+          command: |
+            BUCKET_NAME="<< parameters.cluster-name >>-bucket"
+            set +e
+            aws s3 ls "s3://$BUCKET_NAME" --region << parameters.aws-region >>
+            BUCKET_EXISTS=$?
+            set -e
+            if [ "$BUCKET_EXISTS" = "0" ]; then
+              aws s3 rm "s3://$BUCKET_NAME" --region << parameters.aws-region >> --recursive
+              aws s3 rb "s3://$BUCKET_NAME"
+            fi
+            aws s3 mb s3://$BUCKET_NAME --region << parameters.aws-region >>
+
+            hal config storage s3 edit \
+              --access-key-id $AWS_ACCESS_KEY_ID \
+              --secret-access-key $AWS_SECRET_ACCESS_KEY \
+              --bucket $BUCKET_NAME
+            hal config storage edit --type s3
+      - run:
+          name: Deploy spinnaker
+          command: |
+            # Choose version
+            hal version list # just for display
+            hal config version edit --version << parameters.spinnaker-version >>
+            # Deploy spinnaker
+            hal deploy apply
+      - run:
+          name: Setup connection to spinnaker
+          command: |
+            kubectl get services --namespace spinnaker
+            kubectl get pods --namespace spinnaker
+            # Avoid "error: unable to forward port because pod is not running. Current status=Pending"
+            kubectl wait --for=condition=Ready pods --all --timeout=300s -n spinnaker
+            # This command automatically forwards ports 9000 (Deck UI) and 8084 (Gate API service).
+            hal deploy connect
+          background: true
+      - run:
+          name: Test connection to spinnaker
+          command: |
+            kubectl get pods --namespace spinnaker
+            # Note: we have to wait here because this step runs in parallel with the background step
+            # that sets up the port forwarding
+            kubectl wait --for=condition=Ready pods --all --timeout=300s -n spinnaker
+            kubectl get pods --namespace spinnaker
+            sleep 30
+            curl http://localhost:9000
+      - spinnaker/install-spin:
+          configure-spin: true
+          generate-config: true
+      - run:
+          name: Setup application pipeline with spin
+          command: |
+            spin application save \
+              --application-name myapp \
+              --owner-email community-partner@circleci.com \
+              --cloud-providers "kubernetes"
+            spin pipeline save --file tests/pipeline.json
+  test-spinnaker:
+    executor: spinnaker/default-stretch
+    parameters:
+      cluster-name:
+        description: |
+          Name of the EKS cluster
+        type: string
+    steps:
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << parameters.cluster-name >>
+          install-kubectl: true
+      - spinnaker/install-spin:
+          configure-spin: true
+          generate-config: true
+      - spinnaker/set-up-port-forwarding:
+          pod: deck
+          namespace: spinnaker
+      - spinnaker/set-up-port-forwarding:
+          pod: gate
+          namespace: spinnaker
+      - run:
+          name: Test spin
+          command: |
+            # Wait for port forwarding to be set up
+            sleep 30
+            spin application list
+      - spinnaker/trigger-pipeline-with-webhook:
+          webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
+          payload: "{\\\"status\\\": \\\"success\\\", \\\"jobid\\\": \\\"$CIRCLE_WORKFLOW_JOB_ID\\\", \\\"message\\\": \\\"I've got it\\\"}"
+      - spinnaker-test/verify-pipeline-execution:
+          app-name: myapp
+          search-term: "$CIRCLE_WORKFLOW_JOB_ID"
+  # Orb promotion workflow jobs
+  pre-orb-promotion-check:
+    executor: aws-eks/python2
+    steps:
+      - checkout
+      - run:
+          name: Check that this is a master branch commit
+          command: |
+            git clone "$CIRCLE_REPOSITORY_URL" repository
+            cd repository
+            git branch --contains ${CIRCLE_SHA1} | grep "master"
+  promote-orb-into-production:
+    parameters:
+      orb-name:
+        type: string
+        description: |
+          Semver-less name of the orb to be promoted into production
+      orb-ref:
+        type: string
+        description: |
+          Version information of the orb to be promoted into production
+    executor: cli/default
+    steps:
+      - checkout
+      - run:
+          name: Promote dev orb to production
+          command: |
+            RELEASE_TYPE=''
+            if [[ "${CIRCLE_TAG}" =~ major-release-* ]]; then
+              RELEASE_TYPE='major'
+            elif [[ "${CIRCLE_TAG}" =~ minor-release-* ]]; then
+              RELEASE_TYPE='minor'
+            elif [[ "${CIRCLE_TAG}" =~ patch-release-* ]]; then
+              RELEASE_TYPE='patch'
+            fi
+            if [ -n "${RELEASE_TYPE}" ]; then
+              circleci orb publish promote \
+              <<parameters.orb-name>>@<<parameters.orb-ref>> \
+              ${RELEASE_TYPE} --token \
+              ${CIRCLE_TOKEN}
+            fi
+
+workflows:
+  lint-pack_validate_publish-dev:
+    unless: << pipeline.parameters.run-integration-tests >>
+    jobs:
+      - orb-tools/lint
+      - orb-tools/pack:
+          requires:
+            - orb-tools/lint
+      - queue/block_workflow:
+          consider-branch: false
+          time: '60'
+          requires:
+            - orb-tools/pack
+          context: orb-publishing
+      - orb-tools/publish-dev:
+          orb-name: sandbox/spinnaker
+          requires:
+            - queue/block_workflow
+          context: orb-publishing
+      - trigger-integration-tests:
+          cluster-name: << pipeline.parameters.cluster-name >>
+          requires:
+            - orb-tools/publish-dev
+          context: orb-publishing
+
+  integration-tests:
+    when: << pipeline.parameters.run-integration-tests >>
+    jobs:
+      - aws-eks/create-cluster:
+          cluster-name: << pipeline.parameters.cluster-name >>
+          tags: "name=cci_orbs_spinnaker,purpose=orb_test_spinnaker"
+      - install-spinnaker:
+          cluster-name: << pipeline.parameters.cluster-name >>
+          create-service-account: true
+          spinnaker-account-name: spinnaker-dev
+          spinnaker-version: 1.15.1
+          requires:
+            - aws-eks/create-cluster
+      - test-spinnaker:
+          cluster-name: << pipeline.parameters.cluster-name >>
+          requires:
+            - install-spinnaker
+      - aws-eks/delete-cluster:
+          cluster-name: << pipeline.parameters.cluster-name >>
+          requires:
+            - test-spinnaker
+
+  # Tag-triggered workflow to promote a dev orb into production.
+  # The tag is expected to have been applied manually.
+  production-orb-publishing:
+    jobs:
+      - pre-orb-promotion-check:
+          filters: *orb_promotion_filters
+      - hold-for-approval:
+          type: approval
+          requires:
+            - pre-orb-promotion-check
+          filters: *orb_promotion_filters
+      - promote-orb-into-production:
+          orb-name: sandbox/spinnaker
+          orb-ref: dev:${CIRCLE_SHA1:0:7}
+          context: orb-publishing
+          requires:
+            - hold-for-approval
+          filters: *orb_promotion_filters

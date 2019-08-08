@@ -1,0 +1,12 @@
+description: |
+  This is a default executor that is based on Debian Stretch and has
+  Python 3 installed.
+docker:
+  - image: 'circleci/python:<<parameters.tag>>'
+parameters:
+  tag:
+    default: 3-stretch
+    description: |
+      Pick a specific circleci/python image variant:
+      https://hub.docker.com/r/circleci/python/tags
+    type: string
