@@ -117,7 +117,7 @@ jobs:
                   # https://www.spinnaker.io/setup/install/providers/kubernetes-v2/#optional-create-a-kubernetes-service-account
                   CONTEXT=$(kubectl config current-context)
 
-                  # This service account uses the ClusterAdmin role -- this is not necessary, 
+                  # This service account uses the ClusterAdmin role -- this is not necessary,
                   # more restrictive roles can by applied.
                   kubectl apply --context $CONTEXT \
                       -f https://spinnaker.io/downloads/kubernetes/service-account.yml
@@ -269,11 +269,11 @@ workflows:
           spinnaker-account-name: spinnaker-dev
           spinnaker-version: 1.15.1
           requires:
-           - setup-cluster
+            - setup-cluster
       - test-spinnaker:
           cluster-name: << pipeline.parameters.cluster-name >>
           requires:
-           - install-spinnaker
+            - install-spinnaker
       - aws-eks/delete-cluster:
           cluster-name: << pipeline.parameters.cluster-name >>
           requires:
