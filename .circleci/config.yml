@@ -88,9 +88,9 @@ jobs:
             spin application list
       - spinnaker/trigger-pipeline-with-webhook:
           webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
-          payload: '{"status": "success", "message": "I\u0027ve got this" }'
+          payload: "{\\\"status\\\": \\\"success\\\", \\\"jobid\\\": \\\"$CIRCLE_WORKFLOW_JOB_ID\\\", \\\"message\\\": \\\"I've got it\\\"}"
       - spinnaker-test/verify-pipeline-execution:
-          search-term: "$CIRCLE_BUILD_NUMBER"
+          search-term: "$CIRCLE_WORKFLOW_JOB_ID"
 
 workflows:
   lint-pack_validate_publish-dev:
