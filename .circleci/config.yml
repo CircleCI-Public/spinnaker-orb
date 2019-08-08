@@ -202,8 +202,8 @@ jobs:
             # that sets up the port forwarding
             kubectl wait --for=condition=Ready pods --all --timeout=300s -n spinnaker
             kubectl get pods --namespace spinnaker
-            sleep 30
-            curl http://localhost:9000
+            sleep 60
+            curl --retry 5 http://localhost:9000
       - spinnaker/install-spin:
           configure-spin: true
           generate-config: true
