@@ -18,6 +18,10 @@ orbs:
                 sudo bash InstallHalyard.sh --user $(whoami) -y
       verify-pipeline-execution:
         parameters:
+          app-name:
+            description: |
+              Spinnaker application name
+            type: string
           search-term:
             description: |
               Search term used to check for pipeline execution.
@@ -27,7 +31,8 @@ orbs:
           - run:
               name: Search for pipeline executions
               command: |
-                APP_NAME="myapp" # This will narrow down results to only contain pipeline executions within a given application
+                # This will narrow down results to only contain pipeline executions within a given application
+                APP_NAME="<< parameters.app-name >>"
                 TRIGGER_TYPE="webhook"
                 PIPELINE_SEARCH_URL="http://localhost:8084/applications/$APP_NAME/executions/search?triggerTypes=$TRIGGER_TYPE"
                 curl -s $PIPELINE_SEARCH_URL | grep << parameters.search-term >>
@@ -60,20 +65,6 @@ jobs:
                 \"run-integration-tests\": true
               }
             }" "https://circleci.com/api/v2/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pipeline"
-  setup-cluster:
-    executor: aws-eks/python
-    parameters:
-      cluster-name:
-        description: |
-          Name of the EKS cluster
-        type: string
-    steps:
-      - kubernetes/install
-      - aws-eks/install-aws-iam-authenticator
-      - aws-eks/create-cluster:
-          cluster-name: << parameters.cluster-name >>
-          tags: "name=cci_orbs_spinnaker,purpose=orb_test_spinnaker"
-          verbose: 3
   install-spinnaker:
     executor: spinnaker/default-stretch
     parameters:
@@ -114,7 +105,7 @@ jobs:
             - run:
                 name: Create service account
                 command: |
-                  # https://www.spinnaker.io/setup/install/providers/kubernetes-v2/#optional-create-a-kubernetes-service-account
+                  # Ref: https://www.spinnaker.io/setup/install/providers/kubernetes-v2/#optional-create-a-kubernetes-service-account
                   CONTEXT=$(kubectl config current-context)
 
                   # This service account uses the ClusterAdmin role -- this is not necessary,
@@ -137,14 +128,14 @@ jobs:
       - run:
           name: Enable Kubernetes Cloud provider using Halyard
           command: |
-            # https://www.spinnaker.io/setup/install/providers/kubernetes-v2/aws-eks/
+            # Ref: https://www.spinnaker.io/setup/install/providers/kubernetes-v2/aws-eks/
             hal config provider kubernetes enable
             hal config provider kubernetes account add << parameters.spinnaker-account-name >> --provider-version v2 --context $(kubectl config current-context)
             hal config features edit --artifacts true
       - run:
           name: Choose distributed installation on K8s environment for installing Spinnaker
           command: |
-            # https://www.spinnaker.io/setup/install/environment/
+            # Ref: https://www.spinnaker.io/setup/install/environment/
             hal config deploy edit --type distributed --account-name << parameters.spinnaker-account-name >>
             # Optional
             LONGEST_SERVICE_STARTUP_TIME=300
@@ -237,6 +228,7 @@ jobs:
           webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
           payload: "{\\\"status\\\": \\\"success\\\", \\\"jobid\\\": \\\"$CIRCLE_WORKFLOW_JOB_ID\\\", \\\"message\\\": \\\"I've got it\\\"}"
       - spinnaker-test/verify-pipeline-execution:
+          app-name: myapp
           search-term: "$CIRCLE_WORKFLOW_JOB_ID"
 
 workflows:
@@ -261,15 +253,16 @@ workflows:
   integration-tests:
     when: << pipeline.parameters.run-integration-tests >>
     jobs:
-      - setup-cluster:
+      - aws-eks/create-cluster:
           cluster-name: << pipeline.parameters.cluster-name >>
+          tags: "name=cci_orbs_spinnaker,purpose=orb_test_spinnaker"
       - install-spinnaker:
           cluster-name: << pipeline.parameters.cluster-name >>
           create-service-account: true
           spinnaker-account-name: spinnaker-dev
           spinnaker-version: 1.15.1
           requires:
-            - setup-cluster
+            - aws-eks/create-cluster
       - test-spinnaker:
           cluster-name: << pipeline.parameters.cluster-name >>
           requires:
