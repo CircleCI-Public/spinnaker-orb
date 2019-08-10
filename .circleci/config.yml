@@ -356,6 +356,7 @@ workflows:
             - install-spinnaker
       - aws-eks/delete-cluster:
           cluster-name: << pipeline.parameters.cluster-name >>
+          wait: true
           requires:
             - test-spinnaker
           post-steps:
