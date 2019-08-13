@@ -1,43 +1,75 @@
 description: |
-  Set up port forwarding for a Spinnaker microservice in a Kubernetes-based
-  Spinnaker installation. This will be run as a background step, which means that the
-  it will run concurrently with the next step(s) in the configuration.
+  Set up port forwarding for the Deck (Spinnaker UI) and Gate (Spinnaker API Gateway)
+  pods in a Kubernetes-based Spinnaker installation.
+  Port forwarding will be run as a background step for each pod,
+  which means that the background steps will run concurrently with the next
+  step(s) in the configuration, unless  the "wait" parameter is set to true.
   Note: requires kubectl to be configured to connect to the kubernetes cluster.
 parameters:
-  pod:
+  deck-source-port:
     description: |
-      The Spinnaker pod to set up port forwarding for.
-      Deck (Spinnaker UI) and Gate (Spinnaker API Gateway) are supported.
-    type: enum
-    enum: ["deck", "gate"]
-  source-port:
-    description: |
-      Specify the local port number in the Spinnaker pod that port forwarding will be
+      Specify the local port number in the Deck (Spinnaker UI) pod that port forwarding will be
       set up for.
-      The default value of -1 will cause the default local port number for the specified
-      Spinnaker pod in a Spinnaker installation to be used.
+      The default value of -1 will cause the default local port number for the Deck pod
+      in a Spinnaker installation to be used.
     type: integer
     default: -1
-  target-port:
+  deck-target-port:
     description: |
-      Specify the target port number for port forwarding to.
+      Specify the target port number for port forwarding to the Deck pod.
       The default value of -1 will cause the same port number to be used as the
-      default local port number for the specified Spinnaker pod in a Spinnaker installation.
+      default local port number for the Deck pod in a Spinnaker installation.
     type: integer
     default: -1
+  deck-protocol:
+    description: |
+      The protocol used for port forwarding to the Deck pod.
+      This is only effective when the "wait" parameter is enabled.
+    type: enum
+    enum: ["http", "https"]
+    default: http
+  gate-source-port:
+    description: |
+      Specify the local port number in the Gate (Spinnaker API Gateway)
+      pod that port forwarding will be set up for.
+      The default value of -1 will cause the default local port number for the Deck pod
+      in a Spinnaker installation to be used.
+    type: integer
+    default: -1
+  gate-target-port:
+    description: |
+      Specify the target port number for port forwarding to the Gate pod.
+      The default value of -1 will cause the same port number to be used as the
+      default local port number for the Deck pod in a Spinnaker installation.
+    type: integer
+    default: -1
+  gate-protocol:
+    description: |
+      The protocol used for port forwarding to the Gate pod.
+      This is only effective when the "wait" parameter is enabled.
+    type: enum
+    enum: ["http", "https"]
+    default: http
   namespace:
     description: |
       The kubernetes namespace in which Spinnaker was installed.
     type: string
+  wait:
+    description: |
+      Whether to wait for port forwarding setup completion.
+    type: boolean
 steps:
   - run:
-      name: Set up port forwarding for Spinnaker pod (<< parameters.pod >>)
+      name: Set up port forwarding for the Spinnaker Deck pod
       command: |
-        POD="<< parameters.pod >>"
-        SOURCE_PORT="<< parameters.source-port >>"
-        TARGET_PORT="<< parameters.target-port >>"
+        POD="deck"
+        DEFAULT_SOURCE_PORT=9000
+        DEFAULT_TARGET_PORT=9000
+        SOURCE_PORT="<< parameters.deck-source-port >>"
+        TARGET_PORT="<< parameters.deck-target-port >>"
         NAMESPACE="<< parameters.namespace >>"
 
+        # Look up pod
         POD_NAME=$(kubectl get pods \
           --selector=app.kubernetes.io/name=${POD},app.kubernetes.io/part-of=spinnaker \
           --namespace ${NAMESPACE} \
@@ -47,27 +79,76 @@ steps:
           echo "Pod name found: ${POD_NAME}"
         else
           echo "Result: ${POD_NAME}"
-          echo "Exit code of kubectl get pods command: ${GET_PODS_EXIT_CODE}."
-          echo "Could not look up name of pod corresponding to ${POD}. Please check if "\
+          echo "Exit code of kubectl get pods command for ${POD}: ${GET_PODS_EXIT_CODE}."
+          echo "Could not look up name of ${POD} pod. Please check if "\
             "kubectl is installed and able to connect to the cluster in which Spinnaker is installed."
           exit 1
         fi
 
-        if [ "${POD}" == "deck" ]; then
-          if [ "${SOURCE_PORT}" == "-1" ]; then
-            SOURCE_PORT=9000
-          fi
-          if [ "${TARGET_PORT}" == "-1" ]; then
-            TARGET_PORT=9000
-          fi
-        elif [ "${POD}" == "gate" ]; then
-          if [ "${SOURCE_PORT}" == "-1" ]; then
-            SOURCE_PORT=8084
-          fi
-          if [ "${TARGET_PORT}" == "-1" ]; then
-            TARGET_PORT=8084
-          fi
+        if [ "${SOURCE_PORT}" == "-1" ]; then
+          SOURCE_PORT="${DEFAULT_SOURCE_PORT}"
+        fi
+        if [ "${TARGET_PORT}" == "-1" ]; then
+          TARGET_PORT="${DEFAULT_TARGET_PORT}"
         fi
 
         kubectl --namespace ${NAMESPACE} port-forward ${POD_NAME} ${SOURCE_PORT}:${TARGET_PORT}
       background: true
+  - run:
+      name: Set up port forwarding for the Spinnaker Gate pod
+      command: |
+        POD="gate"
+        DEFAULT_SOURCE_PORT="8084"
+        DEFAULT_TARGET_PORT="8084"
+        SOURCE_PORT="<< parameters.gate-source-port >>"
+        TARGET_PORT="<< parameters.gate-target-port >>"
+        NAMESPACE="<< parameters.namespace >>"
+
+        # Look up pod
+        POD_NAME=$(kubectl get pods \
+          --selector=app.kubernetes.io/name=${POD},app.kubernetes.io/part-of=spinnaker \
+          --namespace ${NAMESPACE} \
+          --output=jsonpath={.items[0].metadata.name})
+        GET_PODS_EXIT_CODE=$?
+        if [ -n "${POD_NAME}" ] && [ "${GET_PODS_EXIT_CODE}" == "0" ]; then
+          echo "Pod name found: ${POD_NAME}"
+        else
+          echo "Result: ${POD_NAME}"
+          echo "Exit code of kubectl get pods command for ${POD}: ${GET_PODS_EXIT_CODE}."
+          echo "Could not look up name of ${POD} pod. Please check if "\
+            "kubectl is installed and able to connect to the cluster in which Spinnaker is installed."
+          exit 1
+        fi
+
+        if [ "${SOURCE_PORT}" == "-1" ]; then
+          SOURCE_PORT="${DEFAULT_SOURCE_PORT}"
+        fi
+        if [ "${TARGET_PORT}" == "-1" ]; then
+          TARGET_PORT="${DEFAULT_TARGET_PORT}"
+        fi
+
+        kubectl --namespace ${NAMESPACE} port-forward ${POD_NAME} ${SOURCE_PORT}:${TARGET_PORT}
+      background: true
+  - when:
+      condition: << parameters.wait >>
+      steps:
+        - docker/install-dockerize
+        - run:
+            name: Wait for port forwarding setup completion
+            command: |
+              DECK_TARGET_PORT="<< parameters.deck-target-port >>"
+              DECK_PROTOCOL="<< parameters.deck-protocol >>"
+              GATE_TARGET_PORT="<< parameters.gate-target-port >>"
+              GATE_PROTOCOL="<< parameters.gate-protocol >>"
+              DECK_DEFAULT_TARGET_PORT="9000"
+              GATE_DEFAULT_TARGET_PORT="8084"
+
+              if [ "${DECK_TARGET_PORT}" == "-1" ]; then
+                DECK_TARGET_PORT="${DECK_DEFAULT_TARGET_PORT}"
+              fi
+              if [ "${GATE_TARGET_PORT}" == "-1" ]; then
+                GATE_TARGET_PORT="${GATE_DEFAULT_TARGET_PORT}"
+              fi
+              dockerize -timeout 60s \
+                -wait ${DECK_PROTOCOL}://localhost:${DECK_TARGET_PORT} \
+                -wait ${GATE_PROTOCOL}://localhost:${GATE_TARGET_PORT}

@@ -252,16 +252,11 @@ jobs:
           configure-spin: true
           generate-config: true
       - spinnaker/set-up-port-forwarding:
-          pod: deck
           namespace: spinnaker
-      - spinnaker/set-up-port-forwarding:
-          pod: gate
-          namespace: spinnaker
+          wait: true
       - run:
           name: Test spin
           command: |
-            # Wait for port forwarding to be set up
-            sleep 30
             spin application list
       - spinnaker/trigger-pipeline-with-webhook:
           webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
