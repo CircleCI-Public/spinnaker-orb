@@ -321,7 +321,7 @@ workflows:
             - orb-tools/pack
           context: orb-publishing
       - orb-tools/publish-dev:
-          orb-name: sandbox/spinnaker
+          orb-name: circleci/spinnaker
           requires:
             - queue/block_workflow
           context: orb-publishing
