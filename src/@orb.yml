@@ -2,3 +2,6 @@ version: 2.1
 
 description: |
   An orb to simplify deployments with Spinnaker.
+
+orbs:
+  docker: circleci/docker@0.5.13

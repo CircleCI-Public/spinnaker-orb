@@ -12,7 +12,7 @@ orbs:
   kubernetes: circleci/kubernetes@0.3.0
   orb-tools: circleci/orb-tools@8.27.3
   queue: eddiewebb/queue@1.1.2
-  spinnaker: sandbox/spinnaker@dev:alpha
+  spinnaker: circleci/spinnaker@dev:alpha
   spinnaker-test:
     commands:
       install-halyard:
@@ -25,6 +25,30 @@ orbs:
                 sudo apt-get update
                 curl -O https://raw.githubusercontent.com/spinnaker/halyard/master/install/debian/InstallHalyard.sh
                 sudo bash InstallHalyard.sh --user $(whoami) -y
+      remove-bucket-if-exists:
+        parameters:
+          bucket-name:
+            description: |
+              Name of S3 bucket to be removed
+            type: string
+          aws-region:
+            description: |
+              AWS region
+            type: string
+            default: $AWS_DEFAULT_REGION
+        steps:
+          - run:
+              name: Remove S3 bucket if exists
+              command: |
+                BUCKET_NAME="<< parameters.bucket-name >>"
+                set +e
+                aws s3 ls "s3://$BUCKET_NAME" --region << parameters.aws-region >>
+                BUCKET_EXISTS=$?
+                set -e
+                if [ "$BUCKET_EXISTS" = "0" ]; then
+                  aws s3 rm "s3://$BUCKET_NAME" --region << parameters.aws-region >> --recursive
+                  aws s3 rb "s3://$BUCKET_NAME"
+                fi
       verify-pipeline-execution:
         parameters:
           app-name:
@@ -81,6 +105,10 @@ jobs:
       cluster-name:
         description: |
           Name of the EKS cluster
+        type: string
+      bucket-name:
+        description: |
+          Name of S3 bucket used for storage
         type: string
       create-service-account:
         description: |
@@ -157,18 +185,12 @@ jobs:
             hal config deploy edit \
               --liveness-probe-enabled true \
               --liveness-probe-initial-delay-seconds $LONGEST_SERVICE_STARTUP_TIME
+      - spinnaker-test/remove-bucket-if-exists:
+          bucket-name: << parameters.bucket-name >>
       - run:
           name: Set up storage
           command: |
-            BUCKET_NAME="<< parameters.cluster-name >>-bucket"
-            set +e
-            aws s3 ls "s3://$BUCKET_NAME" --region << parameters.aws-region >>
-            BUCKET_EXISTS=$?
-            set -e
-            if [ "$BUCKET_EXISTS" = "0" ]; then
-              aws s3 rm "s3://$BUCKET_NAME" --region << parameters.aws-region >> --recursive
-              aws s3 rb "s3://$BUCKET_NAME"
-            fi
+            BUCKET_NAME="<< parameters.bucket-name >>"
             aws s3 mb s3://$BUCKET_NAME --region << parameters.aws-region >>
 
             hal config storage s3 edit \
@@ -230,16 +252,11 @@ jobs:
           configure-spin: true
           generate-config: true
       - spinnaker/set-up-port-forwarding:
-          pod: deck
           namespace: spinnaker
-      - spinnaker/set-up-port-forwarding:
-          pod: gate
-          namespace: spinnaker
+          wait: true
       - run:
           name: Test spin
           command: |
-            # Wait for port forwarding to be set up
-            sleep 30
             spin application list
       - spinnaker/trigger-pipeline-with-webhook:
           webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
@@ -321,6 +338,7 @@ workflows:
           cluster-name: << pipeline.parameters.cluster-name >>
           tags: "name=cci_orbs_spinnaker,purpose=orb_test_spinnaker"
       - install-spinnaker:
+          bucket-name: << pipeline.parameters.cluster-name >>-bucket
           cluster-name: << pipeline.parameters.cluster-name >>
           create-service-account: true
           spinnaker-account-name: spinnaker-dev
@@ -333,8 +351,12 @@ workflows:
             - install-spinnaker
       - aws-eks/delete-cluster:
           cluster-name: << pipeline.parameters.cluster-name >>
+          wait: true
           requires:
             - test-spinnaker
+          post-steps:
+            - spinnaker-test/remove-bucket-if-exists:
+                bucket-name: << pipeline.parameters.cluster-name >>-bucket
 
   # Tag-triggered workflow to promote a dev orb into production.
   # The tag is expected to have been applied manually.
@@ -348,7 +370,7 @@ workflows:
             - pre-orb-promotion-check
           filters: *orb_promotion_filters
       - promote-orb-into-production:
-          orb-name: sandbox/spinnaker
+          orb-name: circleci/spinnaker
           orb-ref: dev:${CIRCLE_SHA1:0:7}
           context: orb-publishing
           requires:
