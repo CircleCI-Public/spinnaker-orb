@@ -5,7 +5,7 @@ parameters:
   webhook-endpoint:
     description: |
       Webhook endpoint
-    type: string
+    type: env_var_name
   payload:
     description: |
       JSON payload. Escaping of double quotes in the payload is required;
