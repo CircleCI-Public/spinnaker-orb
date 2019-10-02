@@ -2,6 +2,7 @@ version: 2.1
 
 description: |
   An orb to simplify deployments with Spinnaker.
+  Orb's Repo: https://github.com/CircleCI-Public/spinnaker-orb
 
 orbs:
   docker: circleci/docker@0.5.13
