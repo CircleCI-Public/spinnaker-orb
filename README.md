@@ -10,13 +10,13 @@ Here are some features that the Spinnaker orb provides:
 
 ## Usage
 
-See the [orb registry listing](http://circleci.com/orbs/registry/orb/circleci/spinnaker) for usage guidelines.
+See the [orb registry listing](https://circleci.com/orbs/registry/orb/circleci/spinnaker) for usage guidelines.
 
 ## Requirements
 
 - `curl` should be present in `PATH`.
 
-- Some of the commands require a Linux environment to execute in. Refer to the [orb registry listing](http://circleci.com/orbs/registry/orb/circleci/spinnaker) for the descriptions of each command.
+- Some of the commands require a Linux environment to execute in. Refer to the [orb registry listing](https://circleci.com/orbs/registry/orb/circleci/spinnaker) for the descriptions of each command.
 
 ## Examples
 
