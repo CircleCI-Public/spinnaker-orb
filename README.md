@@ -18,6 +18,8 @@ See the [orb registry listing](http://circleci.com/orbs/registry/orb/circleci/sp
 
 - Some of the commands require a Linux environment to execute in. Refer to the [orb registry listing](http://circleci.com/orbs/registry/orb/circleci/spinnaker) for the descriptions of each command.
 
+- `SPINNAKER_WEBHOOK` environment variable should be set in CircleCI project settings
+
 ## Examples
 
 Full usage examples can be found on the Spinnaker orb's page in the orb registry, [here](https://circleci.com/orbs/registry/orb/circleci/spinnaker#usage-examples).
@@ -57,7 +59,6 @@ jobs:
       # Send a request to a webhook endpoint pre-configured in Spinnaker
       # Ref: https://www.spinnaker.io/guides/user/pipeline/triggers/webhooks/
       - spinnaker/trigger-pipeline-with-webhook:
-          webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
           payload: "{\\\"status\\\": \\\"success\\\", \\\"jobid\\\": \\\"$CIRCLE_WORKFLOW_JOB_ID\\\", \\\"message\\\": \\\"I've got it\\\"}"
 workflows:
   example-workflow:
