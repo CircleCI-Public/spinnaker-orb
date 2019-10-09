@@ -4,8 +4,11 @@ description: |
 parameters:
   webhook-endpoint:
     description: |
-      Webhook endpoint
-    type: string
+      Name of environment variable defined in CircleCI
+      containing the webhook endpoint URL pre-configured in Spinnaker
+      Example of value: http://localhost:8084/webhooks/webhook/myappwebhook
+    type: env_var_name
+    default: SPINNAKER_WEBHOOK
   payload:
     description: |
       JSON payload. Escaping of double quotes in the payload is required;
@@ -22,5 +25,10 @@ steps:
   - run:
       name: Trigger Spinnaker pipeline with webhook
       command: |
-        WEBHOOK_ENDPOINT="<< parameters.webhook-endpoint >>"
-        curl -X POST -H "content-type: application/json" -d "<< parameters.payload >>" ${WEBHOOK_ENDPOINT}
+        if [ -z "<< parameters.webhook-endpoint >>" ]; then
+          echo "No webhook endpoint url set"
+          echo "Please input your SPINNAKER_WEBHOOK value in the CircleCI settings for this project or as a parameter for this orb."
+          exit 1
+        else
+          curl -X POST -H "content-type: application/json" -d "<< parameters.payload >>" ${<< parameters.webhook-endpoint >>}
+        fi
