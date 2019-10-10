@@ -259,7 +259,6 @@ jobs:
           command: |
             spin application list
       - spinnaker/trigger-pipeline-with-webhook:
-          webhook-endpoint: "http://localhost:8084/webhooks/webhook/myappwebhook"
           payload: "{\\\"status\\\": \\\"success\\\", \\\"jobid\\\": \\\"$CIRCLE_WORKFLOW_JOB_ID\\\", \\\"message\\\": \\\"I've got it\\\"}"
       - spinnaker-test/verify-pipeline-execution:
           app-name: myapp
