@@ -59,6 +59,8 @@ jobs:
       # Send a request to a webhook endpoint pre-configured in Spinnaker
       # Ref: https://www.spinnaker.io/guides/user/pipeline/triggers/webhooks/
       - spinnaker/trigger-pipeline-with-webhook:
+          # Example env var value: "http://localhost:8084/webhooks/webhook/myappwebhook"
+          webhook-endpoint: SPINNAKER_WEBHOOK
           payload: "{\\\"status\\\": \\\"success\\\", \\\"jobid\\\": \\\"$CIRCLE_WORKFLOW_JOB_ID\\\", \\\"message\\\": \\\"I've got it\\\"}"
 workflows:
   example-workflow:
