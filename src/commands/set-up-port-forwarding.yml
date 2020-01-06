@@ -150,5 +150,5 @@ steps:
                 GATE_TARGET_PORT="${GATE_DEFAULT_TARGET_PORT}"
               fi
               dockerize -timeout 60s \
-                -wait ${DECK_PROTOCOL}://localhost:${DECK_TARGET_PORT}/health \
+                -wait ${DECK_PROTOCOL}://localhost:${DECK_TARGET_PORT} \
                 -wait ${GATE_PROTOCOL}://localhost:${GATE_TARGET_PORT}/health
