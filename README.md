@@ -43,7 +43,7 @@ jobs:
         description: |
           AWS region that the EKS cluster is in
         type: string
-    executor: spinnaker/default-stretch
+    executor: spinnaker/default
     steps:
       # Set up k8s cluster connection.
       # In this example, Spinnaker is deployed on an AWS EKS k8s cluster.
