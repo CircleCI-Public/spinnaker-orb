@@ -1,0 +1,11 @@
+description: |
+  This is a default executor providing an Ubuntu based Python image.
+docker:
+  - image: 'cimg/python:<<parameters.tag>>'
+parameters:
+  tag:
+    default: "3.9"
+    description: |
+      Pass a Python version. Available tags can be found here:
+      https://circleci.com/developer/images/image/cimg/python#image-tags
+    type: string
