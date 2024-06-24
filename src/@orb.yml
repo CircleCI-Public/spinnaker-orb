@@ -1,6 +1,13 @@
 version: 2.1
 
 description: |
+  This orb is no longer supported by CircleCI 
+  because of limited or no use. If you would like 
+  to use this orb or create your own version feel 
+  free to fork the repository and use the following 
+  https://circleci.com/blog/building-private-orbs/ 
+  as a guide to making this orb into a private orb 
+  for your own use. 
   An orb to simplify deployments with Spinnaker.
   Repo: https://github.com/CircleCI-Public/spinnaker-orb
 
