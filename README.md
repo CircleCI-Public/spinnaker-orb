@@ -1,4 +1,8 @@
-# Spinnaker Orb [![CircleCI status](https://circleci.com/gh/CircleCI-Public/spinnaker-orb.svg "CircleCI status")](https://circleci.com/gh/CircleCI-Public/spinnaker-orb) [![CircleCI Orb Version](https://img.shields.io/badge/endpoint.svg?url=https://badges.circleci.io/orb/circleci/spinnaker)](https://circleci.com/orbs/registry/orb/circleci/spinnaker) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/circleci-public/spinnaker-orb/master/LICENSE) [![CircleCI Community](https://img.shields.io/badge/community-CircleCI%20Discuss-343434.svg)](https://discuss.circleci.com/c/ecosystem/orbs)
+# Spinnaker Orb 
+
+This orb is no longer supported by CircleCI because of limited or no use. If you would like to use this orb or create your own version feel free to fork the repository and use the following https://circleci.com/blog/building-private-orbs/ as a guide to making this orb into a private orb for your own use. 
+
+[![CircleCI status](https://circleci.com/gh/CircleCI-Public/spinnaker-orb.svg "CircleCI status")](https://circleci.com/gh/CircleCI-Public/spinnaker-orb) [![CircleCI Orb Version](https://img.shields.io/badge/endpoint.svg?url=https://badges.circleci.io/orb/circleci/spinnaker)](https://circleci.com/orbs/registry/orb/circleci/spinnaker) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/circleci-public/spinnaker-orb/master/LICENSE) [![CircleCI Community](https://img.shields.io/badge/community-CircleCI%20Discuss-343434.svg)](https://discuss.circleci.com/c/ecosystem/orbs)
 
 A CircleCI Orb to simplify deployments to Spinnaker.
 
